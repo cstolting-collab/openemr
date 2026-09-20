@@ -386,7 +386,7 @@ if (
     }
 
     $res = sqlStatement("SELECT " .
-        "f.id, f.date, f.pid, f.encounter, f.stmt_count, f.last_level_closed, f.last_level_billed, f.billing_note as enc_billing_note, " .
+        "f.id, f.date, f.pid, f.encounter, f.stmt_count, f.last_stmt_date, f.last_level_closed, f.last_level_billed, f.billing_note as enc_billing_note, " .
         "p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code, p.billing_note as pat_billing_note, f.provider_id " .
         "FROM form_encounter AS f, patient_data AS p " .
         "WHERE $where " .
