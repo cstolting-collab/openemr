@@ -386,7 +386,7 @@ if (
     }
 
     $res = sqlStatement("SELECT " .
-        "f.id, f.date, f.pid, f.encounter, f.stmt_count, f.last_stmt_date, f.last_level_closed, f.last_level_billed, f.billing_note as enc_billing_note, " .
+        "f.id, f.date, f.pid, f.encounter, f.stmt_count, f.last_level_closed, f.last_level_billed, f.billing_note as enc_billing_note, " .
         "p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code, p.billing_note as pat_billing_note, f.provider_id " .
         "FROM form_encounter AS f, patient_data AS p " .
         "WHERE $where " .
@@ -983,6 +983,7 @@ $language_direction = $session->get('language_direction'); // fetch before the <
                                         }
                                     }
 
+                                    $parseResult = null;
                                     echo "<!-- Notes from ERA upload processing:\n";
                                     if ($shouldParseEra) {
                                         $parseResult = ParseERA::parseERA($tmp_name, 'eob_search_era_callback');
@@ -991,19 +992,39 @@ $language_direction = $session->get('language_direction'); // fetch before the <
                                         }
                                     }
                                     echo "-->\n";
-                                    $erafullname = OEGlobalsBag::getInstance()->get('OE_SITE_DIR') . "/documents/era/$eraname.edi";
-                                    $edihname = OEGlobalsBag::getInstance()->get('OE_SITE_DIR') . "/documents/edi/history/f835/$eraname.835";
+                                    // parseERA returns an empty string only after parsing completes.
+                                    // A callback may have set an ERA name before a later parse error.
+                                    $eraStored = false;
+                                    if ($shouldParseEra && $parseResult === '' && $eraname !== '') {
+                                        $erafullname = OEGlobalsBag::getInstance()->get('OE_SITE_DIR') . "/documents/era/$eraname.edi";
+                                        $edihname = OEGlobalsBag::getInstance()->get('OE_SITE_DIR') . "/documents/edi/history/f835/$eraname.835";
 
-                                    if (is_file($erafullname)) {
-                                        $alertmsg .= "Warning: Set $eraname was already uploaded ";
-                                        if (is_file(OEGlobalsBag::getInstance()->get('OE_SITE_DIR') . "/documents/era/$eraname.html")) {
-                                            $alertmsg .= "and processed. ";
-                                        } else {
-                                            $alertmsg .= "but not yet processed. ";
+                                        if (is_file($erafullname)) {
+                                            $alertmsg .= "Warning: Set $eraname was already uploaded ";
+                                            if (is_file(OEGlobalsBag::getInstance()->get('OE_SITE_DIR') . "/documents/era/$eraname.html")) {
+                                                $alertmsg .= "and processed. ";
+                                            } else {
+                                                $alertmsg .= "but not yet processed. ";
+                                            }
                                         }
+                                        if (rename($tmp_name, $erafullname)) {
+                                            $eraStored = true;
+                                            if (!copy($erafullname, $edihname)) {
+                                                $alertmsg .= xl("Unable to copy ERA file to EDI history") . " ";
+                                            }
+                                        } else {
+                                            $alertmsg .= xl("Unable to save ERA file") . " ";
+                                        }
+                                    } elseif ($parseResult === '' && $eraname === '') {
+                                        $alertmsg .= xl("No remittances found in ERA file") . " ";
                                     }
-                                    rename($tmp_name, $erafullname);
-                                    copy($erafullname, $edihname);
+
+                                    if (!$eraStored) {
+                                        // Do not offer processing for a failed or unsaved upload.
+                                        $eracount = 0;
+                                        $eraname = '';
+                                        $where = '1 = 2';
+                                    }
                                 }
                             } // End 835 upload
 
